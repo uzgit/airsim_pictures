@@ -8,10 +8,14 @@ import numpy
 from tensorflow_examples.models.pix2pix import pix2pix
 import cv2
 import matplotlib.pyplot as plt
+import matplotlib.pylab as pylab
 
 # configuration
 pandas.set_option("display.max_columns", 500)
 pandas.set_option("display.width", 1000)
+params = {"axes.titlesize" : "small"}
+pylab.rcParams.update(params)
+plt.subplots_adjust(top=2, bottom=1)
 
 # get GPU information and assert that we have a GPU
 print("Devices: {}".format(tensorflow.config.experimental.list_logical_devices()))
@@ -31,9 +35,9 @@ DEPTH  = 3
 IMAGE_RESIZE_DIMENSION = (HEIGHT, WIDTH, DEPTH)
 MASK_RESIZE_DIMENSION = (HEIGHT, WIDTH)
 RESIZE_DIMENSION = (HEIGHT, WIDTH)
-EPOCHS = 1
+EPOCHS = 10
 DATA_GENERATION_BATCH_SIZE = 32
-OUTPUT_CHANNELS = 1
+OUTPUT_CHANNELS = 2
 NUM_CLASSES = 2
 IMAGE_DIRECTORY = "images"
 DATA_CSV_FILE = "data.csv"
@@ -50,6 +54,7 @@ random_state = numpy.random.randint(0, 10000)
 training_data = data.sample(frac=TRAINING_SIZE, random_state=random_state)
 validation_data = data.drop(training_data.index)
 
+# notify for data size and train-test-split
 num_images = len(data)
 num_training_images = len(training_data)
 num_validation_images = len(validation_data)
@@ -79,7 +84,7 @@ down_stack.trainable = False
 
 def unet_model(output_channels):
     # inputs = tensorflow.keras.layers.Input(shape=[224, 224, 3])
-    inputs = tensorflow.keras.layers.Input(shape=(224, 224, 3), batch_size=DATA_GENERATION_BATCH_SIZE)
+    inputs = tensorflow.keras.layers.Input(shape=(224, 224, 3))#, batch_size=DATA_GENERATION_BATCH_SIZE)
     x = inputs
 
     # Downsampling through the model
@@ -207,22 +212,21 @@ class ImageMaskDataGenerator(tensorflow.keras.utils.Sequence):
             mask = tensorflow.image.resize(mask, self.resize_dimension)
             mask = numpy.reshape(mask, newshape=(mask.shape[0], mask.shape[1]))
 
+            # threshold
+            mask = numpy.where(mask > 0, 1, 0)
+
             masks[index,] = mask
 
         masks = numpy.reshape(masks, newshape=(self.batch_size, *self.resize_dimension, 1))
         return masks
 
-
-
     # string representation
     def __str__(self):
         return "ImageMaskDataGenerator '{}' with {} batches.".format(self.name, self.__len__())
 
-
-
 # instantiate model
 model = unet_model(OUTPUT_CHANNELS)
-model.compile(optimizer="adam", loss=tensorflow.keras.losses.SparseCategoricalCrossentropy(), metrics=["accuracy"])
+model.compile(optimizer=tensorflow.keras.optimizers.Adam(), loss=tensorflow.keras.losses.SparseCategoricalCrossentropy(from_logits=True), metrics=["accuracy"])
 # model.summary()
 
 # instantiate data generators
@@ -246,12 +250,51 @@ def plot_masked_image(image, mask):
 
 # plot_masked_image(training_batch_images[0], training_batch_masks[0])
 
-# instantiate callbacks
+# instantiate checkpoint callback
 checkpoint_callback = tensorflow.keras.callbacks.ModelCheckpoint(
     filepath="model.h5",
     verbose=1,
     # save_weights_only=True,
     save_freq="epoch")
+
+# define/instantiate display callback and corresponding display function (called on epoch end)
+def display_predictions(model=model, data_generator=validation_data_generator, num_predictions=1):
+    assert num_predictions < DATA_GENERATION_BATCH_SIZE
+    images, masks = data_generator.__getitem__(0)
+
+    columns = num_predictions
+    rows = 3
+
+    figure, axes = plt.subplots(rows, columns)
+    figure.set_figheight(3)
+    figure.set_figwidth(num_predictions)
+    # figure.tight_layout()
+
+    for axis in axes:
+        # axis.axis("tight")
+        # axis.autoscale_view("tight")
+        axis.axis("off")
+
+    for i in range(num_predictions):
+        prediction = model.predict(images[0].reshape(1, 224, 224, 3), batch_size=1)
+        prediction = numpy.where(numpy.isnan(prediction), 0, prediction)
+        prediction = numpy.where(prediction == 0, 0, 1)
+
+        axes[0].imshow(images[i])
+        axes[0].set_title("Input Image", pad=1)
+
+        axes[1].imshow(prediction[0, :, :, 0])
+        axes[1].set_title("Predicted Mask", pad=1)
+
+        axes[2].imshow(masks[i])
+        axes[2].set_title("True Mask", pad=1)
+
+    plt.show()
+class DisplayCallback(tensorflow.keras.callbacks.Callback):
+    def on_epoch_end(self, epoch, logs=None):
+        display_predictions()
+        print ('\nSample Prediction after epoch {}\n'.format(epoch+1))
+display_callback = DisplayCallback()
 
 # train
 history = model.fit(training_data_generator,
@@ -260,4 +303,4 @@ history = model.fit(training_data_generator,
                     validation_data=validation_data_generator,
                     validation_steps=(num_validation_images // DATA_GENERATION_BATCH_SIZE),
                     verbose=1,
-                    callbacks=[checkpoint_callback])
+                    callbacks=[checkpoint_callback, display_callback])

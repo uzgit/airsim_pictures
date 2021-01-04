@@ -8,10 +8,12 @@ import numpy
 from tensorflow_examples.models.pix2pix import pix2pix
 import cv2
 import matplotlib.pyplot as plt
+from matplotlib import gridspec
 
 # configuration
 pandas.set_option("display.max_columns", 500)
 pandas.set_option("display.width", 1000)
+numpy.set_printoptions(threshold=numpy.inf)
 
 # get GPU information and assert that we have a GPU
 print("Devices: {}".format(tensorflow.config.experimental.list_logical_devices()))
@@ -249,7 +251,44 @@ def plot_masked_image(image, mask):
 training_batch_images, training_batch_masks = training_data_generator.__getitem__(20)
 validation_batch_images, validation_batch_masks = validation_data_generator.__getitem__(0)
 
-prediction = model.predict(training_batch_images[0].reshape(1, 224, 224, 3), batch_size=1)
+# prediction = model.predict(training_batch_images[0].reshape(1, 224, 224, 3), batch_size=1)
+#
+# prediction = prediction[0,:,:,0]
+# print(prediction.shape)
+# plot_masked_image(training_batch_images[0], prediction)
 
-print(prediction)
-plot_masked_image(training_batch_images[0], prediction)
+# model.summary()
+
+def display_predictions(model=model, data_generator=validation_data_generator, num_predictions=1):
+    assert num_predictions < DATA_GENERATION_BATCH_SIZE
+    images, masks = data_generator.__getitem__(0)
+
+    columns = num_predictions
+    rows = 3
+
+    print(images[0])
+    masks[0] = numpy.where(masks[0] > 0, 1, 0)
+    print(numpy.unique(masks[0]))
+
+    figure, axes = plt.subplots(rows, columns)
+    figure.set_figheight(3)
+    figure.set_figwidth(num_predictions)
+    # figure.tight_layout()
+
+    for axis in axes:
+        # axis.axis("tight")
+        # axis.autoscale_view("tight")
+        axis.axis("off")
+
+    for i in range(num_predictions):
+        prediction = model.predict(images[0].reshape(1, 224, 224, 3), batch_size=1)
+        prediction = numpy.where(numpy.isnan(prediction), 0, prediction)
+        prediction = numpy.where(prediction == 0, 0, 1)
+
+        axes[0].imshow(images[i])
+        axes[1].imshow(prediction[0, :, :, 0])
+        axes[2].imshow(masks[i])
+
+    plt.show()
+
+display_predictions()
