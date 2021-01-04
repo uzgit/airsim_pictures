@@ -47,7 +47,9 @@ def get_image_and_mask(index):
     image = cv2.imread(path)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     image = cv2.resize(src=image, dsize=(WIDTH, HEIGHT), interpolation=cv2.INTER_AREA)
-    image = numpy.array(image)
+    image = numpy.array(image).astype("float32") / 255
+
+    print(image)
 
     # decode the image's mask
     mask = rle_decode(row["mask"], (image.shape[0], image.shape[1]))
@@ -75,14 +77,23 @@ def display_predictions(num_displays=1):
         print("image shape: {}".format(image.shape))
 
         # prediction_input = numpy.expand_dims( numpy.array(image), 0 )
-        prediction_input = numpy.reshape(image, newshape=(1, 224, 224, 3))
+        # prediction_input = numpy.reshape(image, newshape=(1, 224, 224, 3))
 
-        # prediction_input = numpy.reshape(image, newshape=(224, 224, 3))
+        # prediction_input = numpy.reshape( image, newshape=(1, 224, 224, 3) )
+        # prediction_input = tensorflow.reshape(image, shape=(1, 224, 224, 3))
+        # prediction_input = numpy.random.random(size=(1, 224, 224, 3))
+        # prediction_input = numpy.expand_dims(prediction_input, axis=0)
+        # prediction_input = numpy.expand_dims(prediction_input, axis=0)
+
+        prediction_input = image.reshape((32,) + image.shape)
+
+        # prediction_input = image
+        # prediction_input = numpy.reshape(image, newshape=(1, 224, 224, 3))
         # prediction_input = numpy.expand_dims( prediction_input, axis=0)
 
         print("stuff: {}".format(prediction_input.shape))
         # prediction = numpy.zeros(shape=(image.shape[0], image.shape[1], 1))
-        prediction = model.predict(prediction_input)
+        prediction = model.predict(x=prediction_input, batch_size=32)
         display([image, mask, prediction])
 
 display_predictions()

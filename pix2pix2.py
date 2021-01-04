@@ -27,6 +27,9 @@ pandas.set_option("display.width", 1000)
 HEIGHT = 224
 WIDTH = 224
 
+EPOCHS = 1
+BATCH_SIZE = 32
+
 # get system info for tensorflow
 print("Devices: {}".format(tensorflow.config.experimental.list_logical_devices()))
 gpu_devices = tensorflow.config.list_physical_devices("GPU")
@@ -51,7 +54,7 @@ def rle_decode(mask_rle, shape):
         img[lo:hi] = 1
     return img.reshape(shape)
 
-OUTPUT_CHANNELS = 2
+OUTPUT_CHANNELS = 1
 base_model = tensorflow.keras.applications.MobileNetV2(input_shape=[224, 224, 3], include_top=False)
 
 # Use the activations of these layers
@@ -77,7 +80,8 @@ up_stack = [
 ]
 
 def unet_model(output_channels):
-  inputs = tensorflow.keras.layers.Input(shape=[224, 224, 3])
+  # inputs = tensorflow.keras.layers.Input(shape=[224, 224, 3])
+  inputs = tensorflow.keras.layers.Input(shape=(224, 224, 3), batch_size=BATCH_SIZE)
   x = inputs
 
   # Downsampling through the model
@@ -144,7 +148,7 @@ def get_image_and_mask(index, dataframe=data):
 
 
 
-def data_gen(dataframe, batch_size=128):
+def data_gen(dataframe, batch_size=BATCH_SIZE):
 
     while( True ):
 
@@ -181,7 +185,6 @@ def data_gen(dataframe, batch_size=128):
             total_images_processed -= total_images_processed
             dataframe = dataframe.sample(frac=1)
 
-BATCH_SIZE = 64
 training_data_generator = data_gen(training_data, batch_size=BATCH_SIZE)
 validation_data_generator = data_gen(validation_data, batch_size=BATCH_SIZE)
 
@@ -223,12 +226,20 @@ checkpoint_callback = tensorflow.keras.callbacks.ModelCheckpoint(
     # save_weights_only=True,
     save_freq="epoch")
 
-EPOCHS = 1
-model_history = model.fit_generator(training_data_generator,
+
+# model_history = model.fit_generator(training_data_generator,
+#                                     steps_per_epoch=(num_training_images // BATCH_SIZE),
+#                                     epochs=EPOCHS,
+#                                     validation_data=validation_data_generator,
+#                                     validation_steps=(num_validation_images // BATCH_SIZE),
+#                                     verbose=1,
+#                                     callbacks=[checkpoint_callback])
+#                                     callbacks=[DisplayCallback()])
+
+model_history = model.fit(training_data_generator,
                                     steps_per_epoch=(num_training_images // BATCH_SIZE),
                                     epochs=EPOCHS,
                                     validation_data=validation_data_generator,
                                     validation_steps=(num_validation_images // BATCH_SIZE),
                                     verbose=1,
                                     callbacks=[checkpoint_callback])
-                                    # callbacks=[DisplayCallback()])

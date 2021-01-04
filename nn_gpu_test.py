@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 import keras
 import keras.datasets.mnist as mnist
 from keras.models import Sequential
@@ -6,6 +8,8 @@ from keras.callbacks import ModelCheckpoint, TensorBoard
 import keras.backend as backend
 import tensorflow
 
+import numpy
+
 print("Devices: {}".format(tensorflow.config.experimental.list_logical_devices()))
 gpu_devices = tensorflow.config.list_physical_devices("GPU")
 
@@ -13,7 +17,7 @@ print("GPU device : {}".format(gpu_devices[0]))
 
 batch_size = 128
 num_classes = 10
-epochs = 12
+epochs = 15
 
 image_rows = 28
 image_cols = 28
@@ -42,8 +46,6 @@ print(x_test.shape[0], "test samples")
 y_train = keras.utils.to_categorical(y_train, num_classes)
 y_test  =  keras.utils.to_categorical(y_test, num_classes)
 
-print("checkpoint 1")
-
 model = Sequential()
 model.add(Conv2D(32, kernel_size=(3,3), activation="relu", input_shape=input_shape))
 model.add(Conv2D(64, (3, 3), activation="relu", input_shape=input_shape))
@@ -54,20 +56,15 @@ model.add(Dense(128, activation="relu"))
 model.add(Dropout(0.5))
 model.add(Dense(num_classes, activation="softmax"))
 
-print("checkpoint 2")
-
 model.compile(loss=keras.losses.categorical_crossentropy, optimizer=keras.optimizers.Adadelta(), metrics=["accuracy"])
-
-print("checkpoint 3")
-
 best_check = ModelCheckpoint(filepath="model-best.h5", verbose=1, save_weights_only=True, save_best_only=True)
-
-print("checkpoint 4")
-
 model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=1, validation_data=(x_test, y_test), callbacks=[best_check])
-
-print("checkpoint 5")
-
 score = model.evaluate(x_test, y_test, verbose=0)
 print("Test loss:", score[0])
 print("Test accuracy:", score[1])
+
+prediction_input = x_test[0]
+prediction_input = numpy.expand_dims(prediction_input, axis=0)
+
+prediction = model.predict(prediction_input)
+print("prediction: {}".format(prediction))
