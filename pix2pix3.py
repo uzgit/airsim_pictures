@@ -37,7 +37,7 @@ MASK_RESIZE_DIMENSION = (HEIGHT, WIDTH)
 RESIZE_DIMENSION = (HEIGHT, WIDTH)
 EPOCHS = 10
 DATA_GENERATION_BATCH_SIZE = 32
-OUTPUT_CHANNELS = 2
+OUTPUT_CHANNELS = 3
 NUM_CLASSES = 2
 IMAGE_DIRECTORY = "images"
 DATA_CSV_FILE = "data.csv"
@@ -176,7 +176,7 @@ class ImageMaskDataGenerator(tensorflow.keras.utils.Sequence):
             path = "{}/{}".format(self.base_path, row["filename"])
             image = cv2.imread(path)
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            # image = cv2.resize(src=image, dsize=RESIZE_DIMENSION, interpolation=cv2.INTER_AREA)
+
             image = tensorflow.image.resize(image, self.resize_dimension)
             image = numpy.array(image).astype("float32") / 255
 
@@ -283,13 +283,14 @@ def display_predictions(model=model, data_generator=validation_data_generator, n
         axes[0].imshow(images[i])
         axes[0].set_title("Input Image", pad=1)
 
-        axes[1].imshow(prediction[0, :, :, 0])
+        # axes[1].imshow(prediction[0, :, :, 0])
+        axes[1].imshow(prediction[0])
         axes[1].set_title("Predicted Mask", pad=1)
 
         axes[2].imshow(masks[i])
         axes[2].set_title("True Mask", pad=1)
-
     plt.show()
+
 class DisplayCallback(tensorflow.keras.callbacks.Callback):
     def on_epoch_end(self, epoch, logs=None):
         display_predictions()
