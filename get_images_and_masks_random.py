@@ -3,10 +3,10 @@
 # indices
 SCENE = 0
 SEGMENTATION = 1
-SYMBOL_CUBE_SEGMENTATION_ID = 99 # arbitrary value != -1 and in [0, 255]
+SYMBOL_CUBE_SEGMENTATION_ID = 99    # arbitrary value != -1 and in [0, 255]
 
-# only for debugging, set to False for dataset generation
-DRAW_BOUNDING_BOX = False
+CLEAR_EXISTING_DATASET = True       # clears everything in the dataset directory before generating new data
+DRAW_BOUNDING_BOX = False           # only for debugging, set to False for dataset generation
 
 from datetime import datetime
 import numpy
@@ -18,7 +18,7 @@ sys.path.insert(0, "/home/joshua/git/Airsim/PythonClient")
 import airsim
 import pandas
 import cv2
-import matplotlib.pyplot as plt
+import shutil
 
 # file locations
 dataset_directory = "dataset"
@@ -26,6 +26,10 @@ image_directory = "images"
 mask_directory = "masks"
 scenario_name = "blocks"
 output_csv_name = "labels.csv"
+
+if( CLEAR_EXISTING_DATASET and os.path.exists(dataset_directory) ):
+    print("Removing all existing data!")
+    shutil.rmtree(dataset_directory)
 
 if not os.path.exists(dataset_directory):
     os.makedirs(dataset_directory)
@@ -36,7 +40,6 @@ if not os.path.exists("{}/{}".format(dataset_directory, mask_directory)):
 
 # labels CSV
 columns = "x,y,z,yaw,pitch,roll,bounding_box,rgb_filename,mask_filename".split(",")
-# columns = "x,y,z,yaw,pitch,roll,bounding_box,filename".split(",")
 data = pandas.DataFrame(columns=columns)
 
 total_images = 50000
@@ -45,10 +48,21 @@ if( len(sys.argv) > 1 ):
 
 print("Generating {} images with randomized pose.".format(total_images))
 
-def sigint_handler(sig, frame):
+def save_metadata():
+
+    # save labels
     full_output_filename = "{}/{}".format(dataset_directory, output_csv_name)
     data.to_csv(full_output_filename)
-    print("Saving output to {}".format(full_output_filename))
+
+    # save camera info
+    with open("{}/camera_info.txt".format(dataset_directory), "w") as camera_info_file:
+        camera_info = client.simGetCameraInfo(camera_name=0)
+        camera_info_file.write(str(camera_info))
+
+    print("Saved metadata!")
+
+def sigint_handler(sig, frame):
+    save_metadata()
     sys.exit(0)
 signal.signal(signal.SIGINT, sigint_handler)
 
@@ -69,19 +83,16 @@ print("Initial pose:")
 print(pose)
 
 pitch_magnitude = 0.5
-roll_magitude   = 0.5
+roll_magitude   = numpy.pi / 2
 yaw_magnitude   = 0.5
 pitch_offset    = 0
 roll_offset     = 0
 yaw_offset      = 0
 
+# generate poses
 pitches = numpy.random.uniform(-pitch_magnitude + pitch_offset, pitch_magnitude + pitch_offset, total_images)
 rolls   = numpy.random.uniform(-roll_magitude + roll_offset, roll_magitude + roll_offset, total_images)
 yaws    = numpy.random.uniform(-yaw_magnitude + yaw_offset, yaw_magnitude + yaw_offset, total_images)
-# xs = numpy.full(total_images, pose.position.x_val)
-# ys = numpy.full(total_images, pose.position.y_val)
-# zs = numpy.full(total_images, pose.position.z_val)
-
 xs = numpy.random.uniform(1, 5, total_images)
 ys = numpy.random.uniform(-2.5, 2.5, total_images)
 zs = numpy.random.uniform(0, -1, total_images)
@@ -132,10 +143,7 @@ for i in range(total_images):
 
     # slice the Segmentation image to get rid of RGB
     # we know that this works with segmentation id of 99 (should work generally but depends on color palette)
-    # mask_image = img_rgb
     mask_image = img_rgb[:,:,0]
-
-
     bb_x, bb_y, bb_w, bb_h = cv2.boundingRect(mask_image)
     bounding_box = "{} {} {} {}".format(bb_x, bb_y, bb_w, bb_h)
 
@@ -156,9 +164,6 @@ for i in range(total_images):
 
     # notify periodically
     if( i % 20 == 0 ):
-        # print("{}/{}={:0.2f}%: writing {} ({} x {} px) for x={}, y={}, z={}, pitch={}, roll={}, yaw={}".format(i, total_images, float(i) / total_images * 100, full_filename, img_rgb.shape[0], img_rgb.shape[1], x, y, z, pitch, roll, yaw))
-        print("{}/{}={:0.2f}%: writing {}".format(i, total_images, float(i) / total_images * 100, full_rgb_filename))
+        print("{}/{}={:0.2f}%: writing {}".format(i, total_images, float(i) / total_images * 100, rgb_filename))
 
-full_output_filename = "{}/{}".format(dataset_directory, output_csv_name)
-data.to_csv(full_output_filename)
-print("Saving output to {}".format(full_output_filename))
+save_metadata()
