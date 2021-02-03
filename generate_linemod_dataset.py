@@ -27,9 +27,10 @@ import cv2
 import shutil
 
 # file locations
-dataset_directory = "dataset"
-image_directory = "images"
-mask_directory = "masks"
+dataset_directory = "dataset_linemod/data"
+image_directory = "rgb"
+mask_directory = "mask"
+object_id = "01"
 scenario_name = "blocks"
 output_csv_name = "labels.csv"
 
@@ -39,10 +40,10 @@ if( CLEAR_EXISTING_DATASET and os.path.exists(dataset_directory) ):
 
 if not os.path.exists(dataset_directory):
     os.makedirs(dataset_directory)
-if not os.path.exists("{}/{}".format(dataset_directory, image_directory)):
-    os.makedirs("{}/{}".format(dataset_directory, image_directory))
-if not os.path.exists("{}/{}".format(dataset_directory, mask_directory)):
-    os.makedirs("{}/{}".format(dataset_directory, mask_directory))
+if not os.path.exists("{}/{}/{}".format(dataset_directory, object_id, image_directory)):
+    os.makedirs("{}/{}/{}".format(dataset_directory, object_id, image_directory))
+if not os.path.exists("{}/{}/{}".format(dataset_directory, object_id, mask_directory)):
+    os.makedirs("{}/{}/{}".format(dataset_directory, object_id, mask_directory))
 
 # labels CSV
 columns = "object_id,filename,translation_x,translation_y,translation_z,rotation_yaw,rotation_pitch,rotation_roll,bounding_box,camera_matrix,depth_scale".split(",")
@@ -53,6 +54,13 @@ if( len(sys.argv) > 1 ):
     total_images = int(sys.argv[1])
 
 print("Generating {} images with randomized pose.".format(total_images))
+
+def generate_gt(data):
+
+    with open(dataset_directory + "gt.")
+
+    for index, row in data.iterrows():
+
 
 def save_metadata():
 
@@ -146,7 +154,7 @@ for i in range(total_images):
     rgb_filename += ".png"
     mask_filename += ".png"
 
-    full_rgb_filename = "{}/{}/{}".format(dataset_directory, image_directory, rgb_filename)
+    full_rgb_filename = "{}/{}/{}/{}".format(dataset_directory, object_id, image_directory, rgb_filename)
 
     # write Scene image to png
     airsim.write_png(os.path.normpath(full_rgb_filename), img_rgb)
@@ -168,12 +176,12 @@ for i in range(total_images):
         color = (0, 0, 255) # BGR
         cv2.rectangle(img_rgb, point_1, point_2, thickness=1, color=color)
 
-    full_mask_filename = "{}/{}/{}".format(dataset_directory, mask_directory, mask_filename)
+    full_mask_filename = "{}/{}/{}/{}".format(dataset_directory, object_id, mask_directory, mask_filename)
     airsim.write_png(os.path.normpath(full_mask_filename), img_rgb)
 
     # enter all the data into a dictionary and append it to the dataframe
 # columns = "object_id,filename,translation_x,translation_y,translation_z,rotation_yaw,rotation_pitch,rotation_roll,bounding_box,camera_matrix,depth_scale".split(",")
-    row_data = [SYMBOL_CUBE_SEGMENTATION_ID, rgb_filename, x, y, z, yaw, pitch, roll, bounding_box, camera_matrix, DEPTH_SCALE]
+    row_data = [1, rgb_filename, x, y, z, yaw, pitch, roll, bounding_box, camera_matrix, DEPTH_SCALE]
     row_dict = dict(zip(columns, row_data))
     data = data.append(row_dict, ignore_index=True)
 
