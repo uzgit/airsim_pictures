@@ -27,7 +27,7 @@ import cv2
 import shutil
 
 # file locations
-dataset_directory = "dataset_linemod/data"
+dataset_directory = "dataset/data"
 image_directory = "rgb"
 mask_directory = "mask"
 object_id = "01"
@@ -55,11 +55,11 @@ if( len(sys.argv) > 1 ):
 
 print("Generating {} images with randomized pose.".format(total_images))
 
-def generate_gt(data):
-
-    with open(dataset_directory + "gt.")
-
-    for index, row in data.iterrows():
+# def generate_gt(data):
+#
+#     with open(dataset_directory + "gt.")
+#
+#     for index, row in data.iterrows():
 
 
 def save_metadata():
@@ -81,6 +81,11 @@ def sigint_handler(sig, frame):
 signal.signal(signal.SIGINT, sigint_handler)
 
 client = airsim.MultirotorClient()
+
+object_names = client.simListSceneObjects('[\w]*')
+for name in object_names:
+    if "symbol" in name:
+        print(name)
 
 # exclude all objects from the segmentation image as per the documentation
 result = client.simSetSegmentationObjectID("[\w]*", -1, True)
