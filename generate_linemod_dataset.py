@@ -12,7 +12,7 @@ DRAW_BOUNDING_BOX = False           # only for debugging, set to False for datas
 
 # to do!!!!!!!!!!!!!!!!!!!!!
 DEPTH_SCALE = 1
-camera_matrix = [572.4114, 0.0, 325.2611, 0.0, 573.57043, 242.04899, 0.0, 0.0, 1.0]
+
 
 from datetime import datetime
 import numpy
@@ -25,6 +25,10 @@ import airsim
 import pandas
 import cv2
 import shutil
+from scipy.spatial.transform import Rotation as R
+from sklearn.model_selection import train_test_split
+import yaml
+# from ruamel.yaml import YAML as yaml
 
 # file locations
 dataset_directory = "dataset/data"
@@ -33,6 +37,10 @@ mask_directory = "mask"
 object_id = "01"
 scenario_name = "blocks"
 output_csv_name = "labels.csv"
+
+metadata_directory = "{}/{}/".format(dataset_directory, object_id)
+
+obj_id = 1
 
 if( CLEAR_EXISTING_DATASET and os.path.exists(dataset_directory) ):
     print("Removing all existing data!")
@@ -46,7 +54,7 @@ if not os.path.exists("{}/{}/{}".format(dataset_directory, object_id, mask_direc
     os.makedirs("{}/{}/{}".format(dataset_directory, object_id, mask_directory))
 
 # labels CSV
-columns = "object_id,filename,translation_x,translation_y,translation_z,rotation_yaw,rotation_pitch,rotation_roll,bounding_box,camera_matrix,depth_scale".split(",")
+columns = "object_id,filename,translation_x,translation_y,translation_z,rotation_yaw,rotation_pitch,rotation_roll,bounding_box,cam_K,depth_scale,cam_R_m2c,cam_t_m2c,obj_bb,obj_id".split(",")
 data = pandas.DataFrame(columns=columns)
 
 total_images = 50000
@@ -55,12 +63,50 @@ if( len(sys.argv) > 1 ):
 
 print("Generating {} images with randomized pose.".format(total_images))
 
-# def generate_gt(data):
-#
-#     with open(dataset_directory + "gt.")
-#
-#     for index, row in data.iterrows():
+def linemod_yml_dump(data, filename, create_arrays=True):
 
+    data_dictionary = data.to_dict(orient="index")
+
+    if( create_arrays ):
+        for key in data_dictionary:
+            data_dictionary[key] = [data_dictionary[key]]
+
+    text = yaml.dump(
+        data_dictionary, width=float("inf"), indent=2, default_flow_style=False
+    )
+
+    text = text.replace("'", "")
+
+    with open(metadata_directory + filename, "w") as file:
+        file.write(text)
+
+def yml_int_array_to_string(array, separator=", "):
+    str_rep = separator.join("{}".format(element) for element in array)
+    str_rep = "[{}]".format(str_rep)
+    return str_rep
+
+def yml_float_array_to_string(array, separator=", "):
+    str_rep = separator.join("{:.8f}".format(element) for element in array)
+    str_rep = "[{}]".format(str_rep)
+    return str_rep
+
+# def linemod_yaml
+
+def generate_gt(data):
+    linemod_yml_dump(data[["cam_R_m2c","cam_t_m2c", "obj_bb", "obj_id"]], "gt.yml", create_arrays=True)
+
+def generate_info(data):
+    linemod_yml_dump(data[["cam_K","depth_scale"]], "info.yml", create_arrays=False)
+
+def generate_train_test(data):
+
+    output_data = data["filename"].apply(lambda x: "{:04d}".format(int(x.replace(".png", ""))))
+
+    train = output_data.sample(frac=0.8, random_state=200)
+    test  = output_data.drop(train.index)
+
+    train.to_csv(metadata_directory + "train.txt", index=False, header=False)
+    test.to_csv(metadata_directory + "test.txt", index=False, header=False)
 
 def save_metadata():
 
@@ -72,6 +118,10 @@ def save_metadata():
     camera_info = client.simGetCameraInfo(camera_name=1)
     with open("{}/camera_info.txt".format(dataset_directory), "w") as camera_info_file:
         camera_info_file.write(str(camera_info))
+
+    generate_gt(data)
+    generate_info(data)
+    generate_train_test(data)
 
     print("Saved metadata!")
 
@@ -153,7 +203,8 @@ for i in range(total_images):
 
     # generate a unique filename
     id_encoding = "{},{},{},{},{},{},{}".format(scenario_name, x, y, z, pitch, roll, yaw)
-    rgb_filename = str(uuid.uuid3(uuid.NAMESPACE_X500, id_encoding)).replace("-", "")
+    # rgb_filename = str(uuid.uuid3(uuid.NAMESPACE_X500, id_encoding)).replace("-", "")
+    rgb_filename = "{:04d}".format(i)
     # mask_filename = rgb_filename + "_mask"
     mask_filename = rgb_filename
     rgb_filename += ".png"
@@ -173,6 +224,9 @@ for i in range(total_images):
     mask_image = img_rgb[:,:,0]
     bb_x, bb_y, bb_w, bb_h = cv2.boundingRect(mask_image)
     bounding_box = "{} {} {} {}".format(bb_x, bb_y, bb_w, bb_h)
+    obj_bb = yml_int_array_to_string([bb_x, bb_y, bb_w, bb_h])
+
+    (thresh, img_rgb) = cv2.threshold(img_rgb, 1, 255, cv2.THRESH_BINARY)
 
     if( DRAW_BOUNDING_BOX ):
         print("(", bb_x, bb_y, bb_w, bb_h, ")")
@@ -184,14 +238,22 @@ for i in range(total_images):
     full_mask_filename = "{}/{}/{}/{}".format(dataset_directory, object_id, mask_directory, mask_filename)
     airsim.write_png(os.path.normpath(full_mask_filename), img_rgb)
 
+
+    rotation_matrix_raw = (R.from_quat([pose.orientation.x_val, pose.orientation.y_val, pose.orientation.z_val, pose.orientation.w_val])).as_matrix().flatten()
+    rotation_matrix = yml_float_array_to_string(rotation_matrix_raw)
+    translation_vector = yml_float_array_to_string([pose.position.x_val, pose.position.y_val, pose.position.z_val])
+
     # enter all the data into a dictionary and append it to the dataframe
-# columns = "object_id,filename,translation_x,translation_y,translation_z,rotation_yaw,rotation_pitch,rotation_roll,bounding_box,camera_matrix,depth_scale".split(",")
-    row_data = [1, rgb_filename, x, y, z, yaw, pitch, roll, bounding_box, camera_matrix, DEPTH_SCALE]
+
+    camera_matrix = [572.4114, 0.0, 325.2611, 0.0, 573.57043, 242.04899, 0.0, 0.0, 1.0]
+    camera_matrix = yml_int_array_to_string(camera_matrix)
+
+    row_data = [1, rgb_filename, x, y, z, yaw, pitch, roll, bounding_box, camera_matrix, DEPTH_SCALE, rotation_matrix, translation_vector, obj_bb, obj_id]
     row_dict = dict(zip(columns, row_data))
     data = data.append(row_dict, ignore_index=True)
 
-    # notify periodically
-    if( i % 20 == 0 ):
-        print("{}/{}={:0.2f}%: writing {}".format(i, total_images, float(i) / total_images * 100, rgb_filename))
+    print("\r{}/{}={:0.2f}%: writing {}".format(i, total_images, float(i) / total_images * 100, rgb_filename), end="")
+
+print("\nDone generating rgbs and masks!")
 
 save_metadata()
